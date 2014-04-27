@@ -1,0 +1,759 @@
+<!DOCTYPE HTML>
+<html>
+<header>
+	<title>Cave Escape #LD29</title>
+</header>
+<head>
+  
+  <STYLE type="text/css">
+  body{
+
+	margin: 0 auto;
+	font: 14px/19px 'Lucida Grande', sans-serif;
+  }
+  #game{
+	float:left;
+	height:600px;
+	width: 100%;
+   }
+
+  </STYLE>
+  
+  <script type="text/javascript" src="../js/paper.js"></script>
+  <script type="text/paperscript" canvas="game">
+
+	function KeyListener() {
+		this.pressedKeys = [];
+		this.pressedKeysPre = [];
+		
+		for(var i=0;i<100;i++){
+			this.pressedKeys[i]=false;
+			this.pressedKeysPre[i]=false;
+		}
+		
+		this.keydown = function(e) {
+			this.pressedKeys[e.keyCode] = true;
+		};
+	 
+		this.keyup = function(e) {
+			this.pressedKeys[e.keyCode] = false;
+		};
+
+		
+	 
+		document.addEventListener("keydown", this.keydown.bind(this));
+		document.addEventListener("keyup", this.keyup.bind(this));
+	}
+	 
+	KeyListener.prototype.update = function(){
+		//for(var i=30;i<100;i++)this.pressedKeysPre[i]=this.pressedKeys[i] ? true : false;
+	}
+	KeyListener.prototype.isPressed = function(key)
+	{
+		return (this.pressedKeys[key] ? true : false)&&(this.pressedKeysPre[key] ? false : true);
+	};
+
+	KeyListener.prototype.isReleased = function(key)
+	{
+		return (this.pressedKeys[key] ? false : true)&&(this.pressedKeysPre[key] ? true : false);
+	};
+	
+	KeyListener.prototype.isDown = function(key)
+	{
+		return this.pressedKeys[key] ? true : false;
+	};
+	
+	KeyListener.prototype.addKeyPressListener = function(keyCode, callback)
+	{
+		document.addEventListener("keypress", function(e) {
+			if (e.keyCode == keyCode)
+				callback(e);
+		});
+	};
+	
+	function Sprite (options) {
+
+		this.frameIndex = 0;
+		this.tickCount = 0;
+		this.ticksPerFrame = options.ticksPerFrame || 0;
+		this.numberOfFrames = options.numberOfFrames || 1;
+		
+		var canvas = document.getElementById("game");
+		this.context = canvas.getContext("2d");
+		this.width = options.width;
+		this.height = options.height;
+		this.x = 20;
+		this.y = 20;
+		this.image = options.image;
+		this.scaleRatio = 1;
+		this.clipOffsetX = options.clipOffsetX;
+		this.clipOffsetY = options.clipOffsetY;
+		this.clipSizeX = options.clipSizeX;
+		this.clipSizeY = options.clipSizeY;
+		
+		this.update = function () {
+
+            this.tickCount += 1;
+
+            if (this.tickCount > this.ticksPerFrame) {
+
+				this.tickCount = 0;
+				
+                // If the current frame index is in range
+                if (this.frameIndex < this.numberOfFrames - 1) {	
+                    // Go to the next frame
+                    this.frameIndex += 1;
+                } else {
+                    this.frameIndex = 0;
+                }
+            }
+        };
+		
+		this.render = function (x,y) {
+
+		  // Draw the animation
+		  
+		  this.context.drawImage(
+		    this.image,
+		    this.clipOffsetX+this.clipSizeX*this.frameIndex,
+		    this.clipOffsetY,
+		    this.clipSizeX,
+		    this.clipSizeY,
+		    x,
+		    y,
+		    this.width,
+		    this.height);
+		};
+		
+		this.getFrameWidth = function () {
+			return this.width / this.numberOfFrames;
+		};
+		
+		return this;
+	}
+	
+	
+	var keys=new KeyListener();
+	var context,height;
+	tile = new Image();
+	tile.src="tile.png";
+
+	tile.onload = function() {
+	}
+	
+	var text=new Voice();
+	text.text="";
+	text.ttl=-1;
+	
+	light = new Image();
+	light.src="light.png";
+
+	light.onload = function() {
+	}
+
+	var sndJump = new Audio("jump.mp3"), // buffers automatically when created
+		sndDie  = new Audio("die.mp3"),
+		music   = new Audio("music.mp3");
+		
+	music.addEventListener('ended', function() {
+		this.currentTime = 0;
+		this.play();
+	}, false);
+	music.play();
+
+	var mapWidth=30,mapHeight=10,numMaps=8,mapIndex=0;
+	
+	
+	
+	var maps=[ 	[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,1,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,9,5,5,5,5,5,5,5,5,5,5,5,5],
+				[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,3,3,3,3,3,3,3,3,3,3,3,3]],
+	
+				[[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8],
+				[3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3]],
+				
+				[[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,4,3,4,0,0,0,0,0,0,0,0,0,0,0,0,8],
+				[3,4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,3]],
+				
+				[[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,4,3,2,2,2,4,0,0,0,0,0,0,0,0,0,0,0,8],
+				[3,4,4,4,4,4,4,4,4,4,4,4,3,3,4,4,4,3,4,4,4,4,4,4,4,4,4,4,4,3]],
+				
+				
+				[[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,0,4,0,0,0,4,3,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,0,0,0,0,4,3,2,2,2,3,3,2,2,2,2,3,2,2,0,0,0,0,0,0,0,0,8],
+				[3,4,4,4,4,4,4,3,3,4,4,4,3,3,4,4,4,4,3,4,4,4,4,4,4,4,4,4,4,3]],
+				
+				
+				[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,0,0,4,0,0,0,0,0,4,0,4,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+				[3,4,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,8],
+				[3,0,0,4,4,4,0,0,0,0,0,0,4,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,4,3],
+				[3,4,0,0,0,0,0,0,0,0,0,4,3,2,2,2,2,4,0,0,0,4,0,0,0,0,0,0,3,3],
+				[3,3,4,4,4,4,4,4,4,4,4,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,3]],
+				
+				
+				
+				
+				[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,7,7,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[7,7,7,7,7,7,7,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,0,0,4,0,0,0,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[3,3,3,3,3,3,3,4,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,0,3,0,0,0,3,4,4,0,0,0,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,0,0,0,0,0,0,0,0,0,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,0,0,0,0,0,0,0,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]],
+				
+				
+				[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+				[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+				[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+				[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]]]
+				;
+
+	var map=maps[mapIndex];
+	
+	nextLevel=function(){
+		mapIndex++;
+		if(mapIndex<numMaps){
+			map=maps[mapIndex];
+		}
+		
+		switch(mapIndex){
+			case 1 :
+				text.text=" Find a way out!\nUse left/right to move";
+				text.frameIndex=0;
+			break;
+			case 2 :
+				text.text="Use space or up to jump";
+				text.frameIndex=0;
+			break;
+			case 3 :
+				text.text="Spikes are dangerous!";
+				text.frameIndex=0;
+			break;
+			
+			case numMaps-2:
+				text.text="You almost did it!";
+				text.frameIndex=0;
+			break;
+			
+			case numMaps-1:
+				text.text="You did it!";
+				text.frameIndex=0;
+				game.actor.pos.y=300;
+				game.actor.pos.x=100;
+				game.gameover=true;
+			break;
+		}
+	}
+	String.prototype.replaceAt=function(index, character) {
+		return this.substr(0, index) + character + this.substr(index+character.length);
+	}	
+	
+	function Voice(){
+		this.text="";
+		this.currentText="";
+		
+		this.frameIndex = 0;
+		this.tickCount = 0;
+		this.ticksPerFrame = 5;
+		this.numberOfFrames = this.text.length;
+		this.ttl=200;//time to live
+		
+		this.update=function(){
+			if(this.ttl==0)return;
+			this.currentText=this.text.substr(0,this.frameIndex);
+
+			
+			this.tickCount += 1;
+
+            if (this.tickCount > this.ticksPerFrame) {
+
+				this.tickCount = 0;
+                this.frameIndex += 1;
+            }
+			this.ttl--;
+		};
+		
+		this.render=function(x,y){
+			if(this.ttl==0)return;
+
+			context.fillText(this.currentText,x,y);
+		};
+		
+	}
+	
+	function Actor(){
+		this.pos=new Point(200,500);
+		this.dir=new Point(0,0);
+		
+		
+		this.size=new Point(40,40);
+		this.isJumping=false;
+		this.isWalking=false;
+		
+		this.velocity=10;
+		
+		this.voice=new Voice();
+		this.voice.text="I'm walking normally.";
+		this.image = new Image();
+		this.image.src="guy.png";
+		this.lightOn=false;
+		
+		Image.onload = function() {
+		}
+		
+		this.sprWalkRight = new Sprite({
+			context: this.contex,
+			width: 40,
+			height: 40,
+			image: this.image,
+			numberOfFrames: 2,
+			ticksPerFrame: 4,
+			clipOffsetX:0,
+			clipOffsetY:0,
+			clipSizeX : 16,
+			clipSizeY :16
+			
+		});
+		this.sprWalkLeft = new Sprite({
+			context: this.contex,
+			width: 40,
+			height: 40,
+			image: this.image,
+			numberOfFrames: 2,
+			ticksPerFrame: 4,
+			clipOffsetX:0,
+			clipOffsetY:16,
+			clipSizeX : 16,
+			clipSizeY :16
+			
+		});
+		
+		this.sprJump = new Sprite({
+			context: this.contex,
+			width: 40,
+			height: 40,
+			image: this.image,
+			numberOfFrames: 1,
+			ticksPerFrame: 4,
+			clipOffsetX:32,
+			clipOffsetY:0,
+			clipSizeX : 16,
+			clipSizeY :16
+			
+		});
+		this.sprStop = new Sprite({
+			context: this.contex,
+			width: 40,
+			height: 40,
+			image: this.image,
+			numberOfFrames: 1,
+			ticksPerFrame: 4,
+			clipOffsetX:0,
+			clipOffsetY:0,
+			clipSizeX : 16,
+			clipSizeY :16
+			
+		});
+		this.currentSprite=this.sprStop;
+		
+		
+		this.jump = function(){
+			var corners=[this.pos,this.pos+this.size*new Point(0.3,0)];
+			
+			if(!(game.isSolidPoint(corners[0]+this.dir)||game.isSolidPoint(corners[1]+this.dir)))return;
+		
+			this.dir.set(0,8);
+			this.isJumping=true;
+			sndJump.play();
+		}
+		this.die = function(){
+			this.pos.set(100,60);
+			if(mapIndex==0){nextLevel();return;}
+			sndDie.play();
+		}
+		this.spawn = function(){
+			this.pos.set(100,60);
+		}
+		this.updateKinematic = function(){
+			this.currentSprite=this.sprStop;
+		
+			this.isWalking=false;
+			
+			this.checkBlocks();
+			
+			var corners=[this.pos,this.pos+this.size*new Point(0.3,0),this.pos+this.size*new Point(0,1),this.pos+this.size*new Point(0.3,1)];//actor sprite corners for collisions detection
+			
+			if(!(game.isSolidPoint(corners[0]+this.dir)||game.isSolidPoint(corners[1]+this.dir))){
+					this.dir.y-=0.5;
+					this.isJumping=true;
+					
+			}else
+			{
+				this.isJumping=false;
+				this.dir.y*=0;
+			}
+			if(this.dir.x!=0){
+				if(this.dir.x>0)this.currentSprite=this.sprWalkRight;
+				else this.currentSprite=this.sprWalkLeft;
+				if(game.isSolidPoint(this.pos+this.size*new Point(0.3,0.5)+this.dir*2))this.dir.x=0;
+			}
+			if(this.isJumping)this.currentSprite=this.sprJump;
+			
+			if(!((game.isSolidPoint(corners[2])||game.isSolidPoint(corners[3]))&&this.dir.y>0)){
+			
+			this.pos+=this.dir;
+			}else this.dir.x*=0;
+			this.currentSprite.update();
+			this.voice.update();
+		}
+		this.checkBlocks=function(){
+			var corners=[this.pos,this.pos+this.size*new Point(1,0),this.pos+this.size*new Point(0,1),this.pos+this.size*new Point(1,1)];//actor sprite corners for collisions detection
+			
+			for(var i=2;i<4;i++)switch(game.mapAtPoint(corners[i])){
+				case 2 : this.die();
+				break;
+				case 8 : 
+					nextLevel();
+					this.spawn();
+				break;
+			}
+			
+			if(this.pos.x<0)this.die();
+			if(this.pos.y<0)this.die();
+			if(this.pos.x>game.width){
+					this.spawn();
+					nextLevel();	
+			}
+			if(mapIndex==numMaps-2)
+				if(this.pos.y>350)this.lightOn=false;
+				else this.lightOn=true;
+				
+			if(mapIndex==numMaps-1)
+				this.lightOn=false;
+			
+		}
+		this.update= function(){
+			this.currentSprite=this.sprStop;
+		
+			this.isWalking=false;
+			
+			this.checkBlocks();
+			
+			var corners=[this.pos,this.pos+this.size*new Point(0.3,0),this.pos+this.size*new Point(0,1),this.pos+this.size*new Point(0.3,1)];//actor sprite corners for collisions detection
+			
+			if(!(game.isSolidPoint(corners[0]+this.dir)||game.isSolidPoint(corners[1]+this.dir))){
+					this.dir.y-=0.5;
+					this.isJumping=true;
+					
+			}else
+			{
+				this.isJumping=false;
+				this.dir*=0.001;
+			}
+			
+			if(keys.isPressed(37))if(!(game.isSolidPoint(corners[0]+new Point(-this.velocity,10))||game.isSolidPoint(corners[3]+new Point(-this.velocity,-5)))){this.pos.x-=this.velocity;this.isWalking=true;this.currentSprite=this.sprWalkLeft;}
+			if(keys.isPressed(39))if(!(game.isSolidPoint(corners[1]+new Point(this.velocity,10))||game.isSolidPoint(corners[2]+new Point(this.velocity,-5)))){this.pos.x+=this.velocity;this.isWalking=true;this.currentSprite=this.sprWalkRight;}
+			
+			
+			if(keys.isPressed(32)||keys.isPressed(38))
+				if(!this.isJumping)this.jump();
+
+			if(this.isJumping)this.currentSprite=this.sprJump;
+			
+			if(!((game.isSolidPoint(corners[2])||game.isSolidPoint(corners[3]))&&this.dir.y>0)){
+			
+			this.pos+=this.dir;
+			}else this.dir*=0;
+			this.currentSprite.update();
+			this.voice.update();
+		};
+		
+		this.render = function(){
+			this.currentSprite.render(this.pos.x-10,height-this.size.y-this.pos.y);
+			this.voice.render(this.pos.x-10,height-this.size.y-this.pos.y-10);
+			
+			
+			if(!this.lightOn)return;
+			
+			var s=4*1024*(Math.random()*0.1+1);
+			var x=Math.random()*10,y=Math.random()*10-40;
+			context.drawImage(
+				light,
+				this.pos.x-s/2+x,
+				game.height-this.pos.y-s/2+y,
+				s,
+				s);
+			
+		};
+	}
+	
+	function Game() {
+		this.canvas = document.getElementById("game");
+		var rect = this.canvas.getBoundingClientRect();
+		this.PosX=parseInt(rect.left);
+		this.PosY=parseInt(rect.top);
+		console.log(this.PosX,this.PosY);
+		this.width = this.canvas.width;
+		this.height = this.canvas.height;
+		this.context = this.canvas.getContext("2d");
+		context=this.context;
+
+		
+		this.pauseText=new Voice();
+		this.pauseText.text="";
+		this.pauseText.ttl=-1;
+		
+		this.pause=false;
+		this.gameover=false;
+		
+		this.actor=new Actor();
+	}
+	Game.prototype.togglePause = function() 
+	{
+		this.pause=!this.pause;
+		if(this.pause){this.pauseText.text="PAUSE";this.pauseText.frameIndex=0;}
+		else this.pauseText.text="";
+
+	};
+	
+	Game.prototype.empty = function() 
+	{
+		this.setPause(true);
+	};
+	Game.prototype.random = function() 
+	{
+		
+	};
+	Game.prototype.mapAtPoint = function(p){
+		return this.mapAt(p.x,p.y);
+	}	
+	Game.prototype.mapAt = function(x,y) 
+	{
+			y=this.height-y;
+			if(x<0||x>=this.width)return false;
+			if(y<0||y>=this.height)return false;
+			var dX=this.width/mapWidth;
+			var dY=this.height/mapHeight;
+
+			return map[parseInt(y/dY)][parseInt(x/dX)];
+	};
+	
+	Game.prototype.isSolid2f = function(x,y) 
+	{
+			y=this.height-y;
+			if(x<0||x>=this.width)return false;
+			if(y<0||y>=this.height)return false;
+			var dX=this.width/mapWidth;
+			var dY=this.height/mapHeight;
+
+			var index=map[parseInt(y/dY)][parseInt(x/dX)];
+			if(index>2&&index!=9)return true;
+			return false;
+	};
+	
+	Game.prototype.isSolidPoint = function(p) 
+	{
+			return this.isSolid2f(p.x,p.y);
+	};
+	
+	Game.prototype.draw = function()
+	{
+		height=this.height;
+		this.context.clearRect(0, 0, this.width, this.height);
+		this.context.fillStyle = "black";
+		this.context.fillRect(0, 0, this.width, this.height);
+		this.context.fillStyle = "green";
+
+		
+		
+		var dX=this.width/mapWidth;
+		var dY=this.height/mapHeight;
+		for(var y=0;y<mapHeight;y++)
+		for(var x=0;x<mapWidth;x++)
+			this.context.drawImage(tile,map[y][x]*64+1,0,62,62,x*dX,y*dY, dX, dY);
+
+		context.font="40px Verdana";
+		
+		this.actor.render();
+		
+		this.context.fillStyle = "blue";
+		text.render(400,200);
+		this.context.fillStyle = "red";
+		context.font="80px Verdana";
+		this.pauseText.render(500,400);
+	};
+
+	Game.prototype.update = function()
+	{
+		
+			
+		this.pauseText.update();
+		if(this.pause)return;
+		
+		keys.update();
+		this.actor.update();
+		text.update();
+		
+	};
+	
+	Game.prototype.updateKinematic = function()
+	{
+		this.pauseText.update();
+		if(this.pause)return;
+		
+		//keys.update();
+		this.actor.updateKinematic();
+		text.update();
+		
+		//this.actor.update();
+	};
+
+	var game = new Game();
+	var a=0; //timer
+
+
+	
+	document.onkeypress=function(e){
+		if(e.which==112)//=="p"
+		game.togglePause();
+		
+		console.log(game.actor.pos.y);
+	}	
+	
+
+	function MainLoop() {
+		game.update();
+		game.draw();
+
+		if(!game.gameover)
+		setTimeout(MainLoop, 20);
+		else {
+			a=0;
+			victory();
+		}
+	}
+	
+	
+	
+	
+	
+	
+	function victory(){
+		console.log("victory");
+		if(a<60)
+		game.actor.dir.x=10;
+		else game.actor.jump();
+		
+		game.updateKinematic();
+		game.draw();
+		
+		if(!game.pause)
+		a++;
+
+		setTimeout(victory,30);
+	}
+	function kinematic(){
+		game.actor.dir.x=3;
+		game.updateKinematic();
+		game.draw();
+		
+		if(a==190){
+			game.actor.voice.text="Nooooooo";
+			game.actor.voice.ttl=40;
+			game.actor.voice.frameIndex=0;
+			game.actor.voice.ticksPerFrame=2;
+		}
+		if(a<230){
+			if(a>210)game.actor.lightOn=true;
+			
+			setTimeout(kinematic,10);
+			if(!game.pause)
+			a++;
+		}else{
+			MainLoop();
+		}
+	}
+	function Main(){
+		context.clearRect(0, 0, game.width, game.height);
+		context.fillStyle = "black";
+		context.fillRect(0, 0, game.width, game.height);
+		context.fillStyle = "blue";
+	
+		context.font="30px Verdana";
+		context.fillText("Ludum dare #29",50,200);
+		setTimeout(foo, 500);
+	}
+	
+	function foo(){
+		
+		context.font="40px Verdana";
+		context.fillText("Cave Escape",50,250);
+		
+		
+		setTimeout(kinematic, 1000);
+		
+	}
+	// Start the game execution
+	Main();
+	
+	
+	</script>
+
+</head>
+
+<body>
+	<canvas id="game" ></canvas>
+</body>
+</html>
